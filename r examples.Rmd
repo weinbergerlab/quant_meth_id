@@ -1,0 +1,229 @@
+---
+title: "Quantitative Methods in infectious Disease"
+subtitle: "Time series examples"
+author: "Dan Weinberger"
+date: "November 16, 2018"
+output: 
+  ioslides_presentation:
+     widescreen: true
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Examples
+
+Here are some worked examples of what we are covering in class
+
+## Generating harmonic curves
+-First create an index variable for time (1,2,3...t)
+-Then use sine and cosine functions to generate a wave with specified period
+-12 month harmonic (sine and cosine waves)
+```{r harmonics, echo=TRUE, fig.height = 3}
+t<-1:120
+sin12<-sin(2*pi*t/12)
+cos12<-cos(2*pi*t/12)
+plot(sin12, type='l', col='red')
+points(cos12, type='l', lty=2, col='blue')
+```
+
+##Vary the period (sin(2*3.14*t/period))
+```{r period.slider, echo=FALSE}
+require(shiny)
+shinyApp(
+
+  ui = fluidPage(
+    sliderInput("period", "Period:",
+               min=2, max=36, value=12),
+    plotOutput("periodPlot")
+  ),
+
+  server = function(input, output) {
+    output$periodPlot = renderPlot({
+      plot(sin12, type='l', col='gray')
+      points(sin(2*pi*t/input$period),type='l', col='red', xlab='time' )
+    })
+  },
+
+  options = list(height = 500)
+)
+```
+
+##Generate data with known periodicity
+-120 months total (10 years of data)
+-Has both a 10 and 20 month cycle
+-Amplitude=1.5
+```{r gen_data , echo=TRUE}
+n=120
+t<-1:n
+set.seed(123)
+#Generate some  data that has a frequency of 1/10 and 1/20  frequency (period of 10 ,10 )
+amp1=1.5
+freq1=1/10 # high frequency
+
+amp2=2.0
+freq2=1/20 #low frequency
+
+xt1a=amp1*cos(2*3.14159*t*freq1) #component 1
+xt1b=amp2*cos(2*3.14159*t*freq2) #component 2
+intercept<-0.0
+lambda<- exp(intercept+xt1a+xt1b)
+xt1=rpois(n,lambda)
+
+```
+
+---
+```{r plots1, echo=FALSE, fig.height = 5, fig.width = 8}
+par(mfrow=c(2,2), mar=c(2,2,1,1))
+plot(xt1a, bty='l' , main='Component 1', type='l' , ylim=c(-2.5, 2.5))
+plot(xt1b, bty='l' , main='Component 2' , type='l', ylim=c(-2.5,2.5))
+plot(xt1a+xt1b, bty='l' , main='Component 1+2' , type='l', ylim=c(-4,4))
+plot(t, xt1,type="l", lwd=3, xaxt="n",bty="l",ylab="Cases of Disease", xlab="Month(n)", main="Cases")
+
+```
+
+##Fast Fourier Transform
+-Can we use FFT to detect the correct period?
+```{r fft1, echo=TRUE}
+# Do a FFT
+fft1=fft(xt1)
+fft1[1:10] 
+```
+-Generates a nunch of imaginary numbers that are hard to interpret
+
+##Function to convert raw power spectrum into something interpretable
+```{r fft_func, echo=FALSE}
+plot.frequency.spectrum <- function(X.k, xlimits=c(5,n/2)) {
+  plot.data  <- cbind(0:(length(X.k)-1), Mod(X.k))
+
+  plot.data[2:length(X.k),2] <- 2*plot.data[2:length(X.k),2] 
+  plot.data[2:length(X.k),1] <- n/plot.data[2:length(X.k),1] 
+  
+  plot(plot.data, t="h", lwd=2, main="", 
+       xlab="Period", ylab="Strength", 
+       xlim=xlimits, ylim=c(0,max(Mod(plot.data[,2]))))
+}
+```
+
+```{r plot_fft}
+par(mfrow=c(1,1))
+  plot.frequency.spectrum(fft1, xlimits=c(2,20))
+
+```
+
+---
+```{r fft.slider, echo=FALSE}
+require(shiny)
+shinyApp(
+
+  ui = fluidPage(
+    
+    sliderInput("period1", "Period1:",
+               min=2, max=48, value=10),
+    sliderInput("period2", "Period2:",
+               min=2, max=48, value=20),
+    sliderInput("amplitude1", "Amplitude1:",
+               min=0.2, max=2.5, value=1.5),
+        sliderInput("amplitude2", "Amplitude2:",
+               min=0.2, max=1.5, value=2.0),
+       plotOutput("periodPlot")
+  ),
+
+  server = function(input, output) {
+    t=1:120
+    xt1a=reactive({input$amplitude1*cos(2*3.14159*t/input$period1)}) #component 1
+    xt1b=reactive ({input$amplitude2*cos(2*3.14159*t/input$period2)}) #component 2
+    intercept<-0.0
+    lambda<- reactive ({exp(intercept+xt1a()+xt1b())})
+    xt.slide=reactive ({rpois(n,lambda())})
+    fft.s=reactive ({fft(xt.slide())})
+
+    output$periodPlot = renderPlot({
+      par(mfrow=c(1,2), mar=c(3,1,1,1))
+   plot(t, xt.slide(),type="l", lwd=3, xaxt="n",bty="l",ylab="Cases of Disease", xlab="Month(n)", main="Cases")
+      plot.frequency.spectrum(fft.s(), xlimits=c(2,max(input$period1, input$period2)))
+
+    })
+  },
+
+  options = list(height = 250)
+)
+```
+
+#Harmonic Regression
+##Create the needed harmonic variables with 10, 20, and 40 month periods
+```{r harm1}
+t<-1:120
+#Create harmonic variables
+sin10=sin(2*pi*t/10)
+cos10=cos(2*pi*t/10)
+sin20=sin(2*pi*t/20)
+cos20=cos(2*pi*t/20)
+sin40=sin(2*pi*t/40)
+cos40=cos(2*pi*t/40)
+```
+
+## Fit a simple poisson regression wit just 10 month period
+```{r harm_reg1}
+fit1a <- glm(xt1 ~ sin10+cos10, family='poisson' )
+pred1a<- fitted(fit1a)
+summary(fit1a)
+par(mfrow=c(1,1))
+plot (t, xt1,bty="l", xaxt="n",yaxt="n",xlab="Time",ylab="Cases of Disease", type="p")
+points(t,pred1a, type="l",lty=1,col="blue", lwd=3)
+```
+
+## Add in 20 month periodicity
+```{r harm_reg2}
+fit2a <- glm(xt1 ~ sin10+cos10 +sin20 +cos20, family='poisson' )
+pred2a<- fitted(fit2a)
+summary(fit2a)
+par(mfrow=c(1,1))
+plot (t, xt1,bty="l", xaxt="n",yaxt="n",xlab="Time",ylab="Cases of Disease", type="p")
+points(t,pred2a, type="l",lty=1,col="blue", lwd=3)
+```
+
+## Add in 40 month period 
+```{r harm_reg3}
+fit3a <- glm(xt1 ~ sin10+cos10 +sin20 +cos20 +sin40 +cos40, family='poisson' )
+pred3a<- fitted(fit3a)
+summary(fit3a)
+par(mfrow=c(1,1))
+plot (t, xt1,bty="l", xaxt="n",yaxt="n",xlab="Time",ylab="Cases of Disease", type="p")
+points(t,pred3a, type="l",lty=1,col="blue", lwd=3)
+```
+
+## Determine best model with AIC (smaller=better)
+Winner= Model 2 (10 and 20month period). Models 2 and 3 have similar AIC score (within 2 points), so we prefer the simpler model
+```{r aic}
+ AIC(fit1a)
+ AIC(fit2a)
+  AIC(fit3a)
+```
+
+#Wavelets
+##Simulate some data with 12 and 24 month periods
+#Simulate some  data that has a 12 month and 24 month period 
+```{r, echo=FALSE}
+  n=120 # 10 years
+  t <- seq(1,n)
+ amp1=5
+ freq1=1/12 # high frequency
+ amp2=5
+ freq2=1/24 #low frequency
+
+ xt1a=amp1*cos(2*3.14159*t*freq1)
+ xt1b=amp2*cos(2*3.14159*t*freq2)
+
+#other seris shifted by 3 months
+ xt2a=amp1*cos(2*3.14159*t*freq1+1)
+ xt2b=amp2*cos(2*3.14159*t*freq2+1)
+
+ #Simulate some poisson count data
+ xt1=rpois(n,exp((xt1a + xt1b)))
+ xt2= rpois(n,exp(xt2a+xt2b))
+ plot(t, xt1,type="l", lwd=3, xaxt="n",yaxt="n",bty="l",ylab="Cases of RSV", xlab="Month(n)")
+ points(t,xt2, type="l",col="red")
+```
