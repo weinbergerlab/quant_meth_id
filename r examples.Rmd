@@ -3,12 +3,14 @@ title: "Quantitative Methods in Infectious Disease"
 subtitle: "Time series examples"
 author: "Dan Weinberger"
 date: 'November 28, 2018'
-output: ioslides_presentation
 runtime: shiny
+output: ioslides_presentation
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
+require(RCurl)
+require(shiny)
 ```
 
 ## Examples
@@ -19,7 +21,7 @@ Here are some worked examples of what we are covering in class
 -First create an index variable for time (1,2,3...t)
 -Then use sine and cosine functions to generate a wave with specified period
 -12 month harmonic (sine and cosine waves)
-```{r harmonics, echo=TRUE, fig.height = 3}
+```{r harmonics, echo=TRUE}
 t<-1:120
 sin12<-sin(2*pi*t/12)
 cos12<-cos(2*pi*t/12)
@@ -29,7 +31,7 @@ points(cos12, type='l', lty=2, col='blue')
 
 ##Vary the period (sin(2*3.14*t/period))
 ```{r period.slider, echo=FALSE}
-require(shiny)
+#library(shiny)
 shinyApp(
 
   ui = fluidPage(
@@ -43,9 +45,7 @@ shinyApp(
       plot(sin12, type='l', col='gray')
       points(sin(2*pi*t/input$period),type='l', col='red', xlab='time' )
     })
-  },
-
-  options = list(height = 500)
+  }
 )
 ```
 
@@ -73,7 +73,7 @@ xt1=rpois(n,lambda)
 ```
 
 ##Plots
-```{r plots1, echo=FALSE, fig.height = 5, fig.width = 8}
+```{r plots1, echo=FALSE}
 par(mfrow=c(2,2), mar=c(2,2,1,1))
 plot(xt1a, bty='l' , main='Component 1', type='l' , ylim=c(-2.5, 2.5))
 plot(xt1b, bty='l' , main='Component 2' , type='l', ylim=c(-2.5,2.5))
@@ -112,7 +112,7 @@ par(mfrow=c(1,1))
 
 ##FFT slider
 ```{r fft.slider, echo=FALSE}
-require(shiny)
+#library(shiny)
 shinyApp(
 
   ui = fluidPage(
@@ -143,10 +143,7 @@ shinyApp(
       plot.frequency.spectrum(fft.s(), xlimits=c(2,max(input$period1, input$period2)))
 
     })
-  },
-
-  options = list(height = 250)
-)
+  })
 ```
 
 #Harmonic Regression
@@ -203,7 +200,7 @@ Winner is Model 2 (10 and 20 month period). Models 2 and 3 have similar AIC scor
 #Wavelets
 
 ##Simulate some data with 12 and 24 month periods
-```{r, echo=FALSE}
+```{r waveset, echo=FALSE}
   n=120 # 10 years
   t <- seq(1,n)
  amp1=5
@@ -227,10 +224,9 @@ Winner is Model 2 (10 and 20 month period). Models 2 and 3 have similar AIC scor
 
 ```{r wave1, echo=FALSE}
 ##Source the Wavelet functions from github. Originally from Johannson PLOS Medicine https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1000168
-#require(RCurl)
-#urlX<-getURL("https://raw.githubusercontent.com/weinbergerlab/quant_meth_id/master/WaveletPkg.R")
-#eval(parse(text = urlX))
-source('WaveletPkg.R')
+urlX<-getURL("https://raw.githubusercontent.com/weinbergerlab/quant_meth_id/master/WaveletPkg.R")
+eval(parse(text = urlX))
+#source('WaveletPkg.R')
 ```
 
 ##Run wavelets on the series we generated
@@ -241,7 +237,7 @@ source('WaveletPkg.R')
 ```
 
 ##Compare phase angle of the 2 series we generated
-```{r wave3, echo=TRUE}
+```{r wave3, echo=FALSE}
 	wave2 <-as.data.frame(cbind("x"=(sqrt(xt2)), "t"=t)) 
 	cwt2 <- complete.cwt(wave2, dj=1/10)
 	phase1<-phase(cwt1, s=c(10, 14))

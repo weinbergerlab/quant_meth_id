@@ -35,7 +35,7 @@ wavelet.bases <- function(mother, omega, scale, param, dt) {
 	   daughter <- pi^(-1/4) * as.numeric(omega > 0) * 
 	   		exp(-(scale * omega-param)^2 / 2) # Table 1
 		fourier.factor <- (4 * pi) / (param + sqrt(2 + param^2))
-				# Scale-->Fourier [Sec.3h] Table 1 without scale
+				# Scale->Fourier [Sec.3h] Table 1 without scale
 		coi <- fourier.factor / sqrt(2)  # Cone-of-influence [Sec.3g]
 	} else if (mother == "paul") {
 		if (param == -1) param <- 4
