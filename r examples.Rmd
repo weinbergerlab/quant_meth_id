@@ -11,6 +11,7 @@ output: ioslides_presentation
 knitr::opts_chunk$set(echo = FALSE)
 require(RCurl)
 require(shiny)
+set.seed(123)
 ```
 
 ## Examples
@@ -99,12 +100,13 @@ plot.frequency.spectrum <- function(X.k, xlimits=c(5,n/2)) {
   plot.data[2:length(X.k),2] <- 2*plot.data[2:length(X.k),2] 
   plot.data[2:length(X.k),1] <- n/plot.data[2:length(X.k),1] 
   
-  plot(plot.data, t="h", lwd=2, main="", 
+  plot(plot.data, t="h", lwd=2,  
        xlab="Period", ylab="Strength", 
-       xlim=xlimits, ylim=c(0,max(Mod(plot.data[,2]))))
+       xlim=xlimits, ylim=c(0,max(Mod(plot.data[,2]))), bty='l', main="FFT power spectrum")
 }
 ```
 
+#FFT power spectrum
 ```{r plot_fft}
 par(mfrow=c(1,1))
   plot.frequency.spectrum(fft1, xlimits=c(2,20))
@@ -117,29 +119,36 @@ par(mfrow=c(1,1))
 shinyApp(
 
   ui = fluidPage(
-    
+    sidebarLayout(position = "left",
+    sidebarPanel(
     sliderInput("period1", "Period1:",
                min=2, max=48, value=10),
+     sliderInput("amplitude1", "Amplitude1:",
+               min=0.2, max=2.5, value=1.5),
     sliderInput("period2", "Period2:",
                min=2, max=48, value=20),
-    sliderInput("amplitude1", "Amplitude1:",
-               min=0.2, max=2.5, value=1.5),
-        sliderInput("amplitude2", "Amplitude2:",
-               min=0.2, max=1.5, value=2.0),
+      sliderInput("amplitude2", "Amplitude2:",
+               min=0.2, max=2.5, value=2.0),
+      sliderInput("int1", "Intercept:",
+               min=0, max=5, value=0)
+      ),
+    mainPanel(
        plotOutput("periodPlot")
+    )
+  )
   ),
 
   server = function(input, output) {
     t=1:120
     xt1a=reactive({input$amplitude1*cos(2*3.14159*t/input$period1)}) #component 1
     xt1b=reactive ({input$amplitude2*cos(2*3.14159*t/input$period2)}) #component 2
-    intercept<-0.0
-    lambda<- reactive ({exp(intercept+xt1a()+xt1b())})
+    intercept<-reactive({input$int1})
+    lambda<- reactive ({exp(intercept()+xt1a()+xt1b())})
     xt.slide=reactive ({rpois(n,lambda())})
     fft.s=reactive ({fft(xt.slide())})
 
     output$periodPlot = renderPlot({
-      par(mfrow=c(1,2), mar=c(3,1,1,1))
+      par(mfrow=c(2,1), mar=c(3,2,1,1))
    plot(t, xt.slide(),type="l", lwd=3, xaxt="n",bty="l",ylab="Cases of Disease", xlab="Month(n)", main="Cases")
       plot.frequency.spectrum(fft.s(), xlimits=c(2,max(input$period1, input$period2)))
 
@@ -200,7 +209,9 @@ Winner is Model 2 (10 and 20 month period). Models 2 and 3 have similar AIC scor
 
 #Wavelets
 
-##Simulate some data with 12 and 24 month periods
+##Pseudo-RSV data: Simulate time series with 12 and 24 month periods
+Imaine this is RSv case data from 2 states, and we want to investigate the
+epidemic characteristics in these states and the lag between states
 ```{r waveset, echo=FALSE}
   n=120 # 10 years
   t <- seq(1,n)
