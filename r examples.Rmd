@@ -29,7 +29,7 @@ plot(sin12, type='l', col='red')
 points(cos12, type='l', lty=2, col='blue')
 ```
 
-##Vary the period (sin(2*3.14*t/period))
+##Vary the period 
 ```{r period.slider, echo=FALSE}
 #library(shiny)
 shinyApp(
@@ -44,6 +44,7 @@ shinyApp(
     output$periodPlot = renderPlot({
       plot(sin12, type='l', col='gray')
       points(sin(2*pi*t/input$period),type='l', col='red', xlab='time' )
+      title(paste0('sin(2*pi*t/',input$period,')'))
     })
   }
 )
@@ -58,10 +59,10 @@ n=120
 t<-1:n
 set.seed(123)
 #Generate some  data that has a frequency of 1/10 and 1/20  frequency (period of 10 ,10 )
-amp1=1.5
+amp1=0.75
 freq1=1/10 # high frequency
 
-amp2=2.0
+amp2=1.5
 freq2=1/20 #low frequency
 
 xt1a=amp1*cos(2*3.14159*t*freq1) #component 1
@@ -75,9 +76,9 @@ xt1=rpois(n,lambda)
 ##Plots
 ```{r plots1, echo=FALSE}
 par(mfrow=c(2,2), mar=c(2,2,1,1))
-plot(xt1a, bty='l' , main='Component 1', type='l' , ylim=c(-2.5, 2.5))
-plot(xt1b, bty='l' , main='Component 2' , type='l', ylim=c(-2.5,2.5))
-plot(xt1a+xt1b, bty='l' , main='Component 1+2' , type='l', ylim=c(-4,4))
+plot(xt1a, bty='l' , main='Component 1', type='l' , ylim=range(c(xt1a,xt1b)))
+plot(xt1b, bty='l' , main='Component 2' , type='l', ylim=range(c(xt1a,xt1b)))
+plot(xt1a+xt1b, bty='l' , main='Component 1+2' , type='l', ylim=range(xt1a+xt1b))
 plot(t, xt1,type="l", lwd=3, xaxt="n",bty="l",ylab="Cases of Disease", xlab="Month(n)", main="Cases")
 ```
 
