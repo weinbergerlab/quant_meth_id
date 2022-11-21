@@ -376,3 +376,5 @@ periods and which time points are the series in sync?
 coh1.2 <- complete.coh(wave1,wave2, mc.sim=100, dj=1/10)
 plot.coh(coh1.2)
 ```
+
+
