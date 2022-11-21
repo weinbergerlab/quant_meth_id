@@ -4,19 +4,16 @@ subtitle: "Time series examples"
 author: "Dan Weinberger"
 date: 'November 28, 2021'
 runtime: shiny
-output: ioslides_presentation
-editor_options: 
-  markdown: 
-    wrap: 72
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 require(shiny)
-source('./functions/WaveletPkg.R')
-source('./functions/plot.wave2.R')
-source('./functions/biennial.func.R')
-
+source('./R/WaveletPkg.R')
+source('./R/plot.wave2.R')
+source('./R/biennial.func.R')
+library(dplyr)
 set.seed(123)
 ```
 
@@ -26,9 +23,7 @@ Here are some worked examples of what we are covering in class
 
 ## Generating harmonic curves
 
--First create an index variable for time (1,2,3...t) -Then use sine and
-cosine functions to generate a wave with specified period -12 month
-harmonic (sine and cosine waves)
+-First create an index variable for time (1,2,3...t) -Then use sine and cosine functions to generate a wave with specified period -12 month harmonic (sine and cosine waves)
 
 ```{r harmonics, echo=TRUE}
 t<-1:120
@@ -65,10 +60,13 @@ shinyApp(
 )
 ```
 
-#Harmonic Regression
+## Harmonic Regression
 
-## Generate count data with known periodicity -120 months total (10
-years of data) -Has both a 10 and 20 month cycle -Amplitude=1.5
+### Generate count data with known periodicity
+
+-   120 months total
+-   (10years of data)
+-   Has both a 12 and 24 month cycle -Amplitude=1.5
 
 ```{r gen_data , echo=TRUE}
 n=120
@@ -93,9 +91,11 @@ lambda<- exp(intercept+xt1a+xt1b)
 ```
 
 Mean (lambda) over time
+
 ```{r}
 plot(lambda, type='l')
 ```
+
 Assume xt1 has a mean of lambda at time t, with a Poisson distribution
 
 ```{r}
@@ -103,7 +103,6 @@ set.seed(1234)
 xt1=rpois(n,lambda)
 
 ```
-
 
 View the components of the data we generated
 
@@ -118,8 +117,7 @@ plot(xt1a+xt1b, bty='l' , main='log(Component 1 +Component 2)' , type='l', ylim=
 plot(t, xt1,type="l", lwd=3, xaxt="n",bty="l",ylab="Cases of Disease", xlab="Month(n)", main="Cases")
 ```
 
-##Create the needed harmonic variables with 12, 24, and 48 month
-periods
+## Create the needed harmonic variables with 12, 24, and 48 month periods
 
 ```{r harm1, echo=TRUE}
 t<-1:120
@@ -153,6 +151,9 @@ points(t,pred1a, type="l",lty=1,col="blue", lwd=3)
 ```{r harm_reg2}
 fit2a <- glm(xt1 ~ sin12+cos12 +sin24 +cos24, family='poisson' )
 pred2a<- fitted(fit2a)
+```
+
+```{r}
 #summary(fit2a)
 par(mfrow=c(1,1))
 plot (t, xt1,bty="l", xaxt="n",yaxt="n",xlab="Time",ylab="Cases of Disease", type="p")
@@ -172,8 +173,7 @@ points(t,pred3a, type="l",lty=1,col="blue", lwd=3)
 
 ## Determine best model with AIC (smaller=better)
 
-Winner is Model 2 (12 and 24 month period). Models 2 and 3 have similar
-AIC score (within 2 points), so we prefer the simpler model
+Winner is Model 2 (12 and 24 month period). Models 2 and 3 have similar AIC score (within 2 points), so we prefer the simpler model
 
 ```{r aic}
  AIC(fit1a)
@@ -181,23 +181,37 @@ AIC score (within 2 points), so we prefer the simpler model
  AIC(fit3a)
 ```
 
-## Calculate amplitude of the 10 and 20 month periods and their ratio
+## Calculate amplitude of the 12 and 24 month periods and their ratio
 
+First for the 12 month period. 
+Amplitude = sqrt(b1^2 + b2^2)
 ```{r amp}
 beta_sin12<-coef(fit2a)['sin12']
 beta_cos12<-coef(fit2a)['cos12']
-beta_sin24<-coef(fit2a)['sin24']
-beta_cos24<-coef(fit2a)['cos24']
 
 amp12<-sqrt(beta_sin12^2 +beta_cos12^2)
-amp24<-sqrt(beta_sin24^2 +beta_cos24^2)
-ratio12_24<-amp24/amp12
-ratio12_24
+
 amp12 #True value=0.75
+```
+
+Same for the 24 month period
+```{r}
+beta_sin24<-coef(fit2a)['sin24']
+beta_cos24<-coef(fit2a)['cos24']
+amp24<-sqrt(beta_sin24^2 +beta_cos24^2)
+
 amp24 #True value=1.5
 ```
 
-## Fast Fourier Transform 
+Ratio of 24 to 12 month gives estimate of importance of biennial vs annual cycles
+
+```{r}
+ratio12_24<-amp24/amp12
+ratio12_24
+```
+
+## Fast Fourier Transform
+
 If we don't already know what periods should be present, can we use first use FFT to detect the correct period? Can sqrt or log transform data prior to FFT
 
 ```{r fft1, echo=TRUE}
@@ -213,7 +227,6 @@ specy <- 2*mspect$spec
 plot(periodx, specy, xlab="Period (months)",
      ylab="Spectral Density", type="l", bty='l')
 ```
-
 
 ##FFT slider
 
@@ -264,65 +277,88 @@ plot(periodx, specy, xlab="Period (months)",
   })
 ```
 
-#Wavelets
+## Wavelets
 
-##Pseudo-RSV data: Simulate time series with 12 and 24 month periods
-Imaine this is RSV case data from 2 states, and we want to investigate
-the epidemic characteristics in these states and the lag between states
+### RSV data from WHO surveillance. COmpare Sweden and France
 
-```{r waveset, echo=FALSE}
-set.seed(123)
-  n=120 # 10 years
-  t <- seq(1,n)
- amp1=2.5
- freq1=1/12 # high frequency
- amp2=0.5
- freq2=1/24 #low frequency
+```{r}
+#code Courtesy of DeusThindwa; data from WHO
+#library(curl)
+#library(dplyr)
+library(ggplot2)
+#rsv <- read.csv(curl("https://frontdoor-l4uikgap6gz3m.azurefd.net/FLUMART/VIW_FNT?$format=csv"))
+#saveRDS(rsv,'./Data/rsv_who.rds')
 
- xt1a=amp1*cos(2*3.14159*t*freq1)
- xt1b=amp2*cos(2*3.14159*t*freq2)
+rsv <- readRDS('./Data/rsv_who.rds')
 
-#other series shifted by 3 months and with smaller biennial component
- xt2a=amp1*cos(2*3.14159*t*freq1+1)
- xt2b=0.5*amp2*cos(2*3.14159*t*freq2+1)
+#Clean the data, fill in 0s if not observed
+rsvds <-
+  rsv %>%
+  dplyr::filter(!is.na(RSV)) %>%
+  dplyr::select(WHOREGION, FLUSEASON, ORIGIN_SOURCE,HEMISPHERE, COUNTRY_AREA_TERRITORY, MMWR_WEEKSTARTDATE, MMWR_YEAR, MMWR_WEEK, RSV) %>%
+  arrange(WHOREGION, COUNTRY_AREA_TERRITORY, MMWR_WEEKSTARTDATE,ORIGIN_SOURCE) %>%
+  filter(COUNTRY_AREA_TERRITORY %in% c('France', 'Sweden')) %>%
+  mutate(date=as.Date(MMWR_WEEKSTARTDATE)) %>%
+  filter(date>='2015-01-01' & date <= '2023-03-01') %>%
+  rename(country=COUNTRY_AREA_TERRITORY) %>%
+  tidyr::complete(country,ORIGIN_SOURCE,date = seq.Date(from=as.Date('2015-01-04') ,to=as.Date('2022-11-06'), by='week'), fill=list(RSV=0)) %>%
+  arrange(country,ORIGIN_SOURCE, date ) %>%
+  group_by(country, ORIGIN_SOURCE) %>%
+  mutate(t= row_number()) %>%
+  ungroup()
 
- #Simulate some poisson count data
- set.seed(123)
- xt1=rpois(n,exp((1+xt1a + xt1b)))
- xt2= rpois(n,exp(2+xt2a+xt2b))
- plot(t, xt1,type="l", lwd=3, xaxt="n",bty="l",ylab="Cases of RSV", xlab="Month(n)", ylim=range(c(xt1,xt2)))
- points(t,xt2, type="l",col="red")
+rsvds %>% filter(ORIGIN_SOURCE=='NONSENTINEL') %>%
+  ggplot( aes(x=date, y=RSV, group=country ,color=country)) +
+  geom_line() +
+  theme_classic()
 ```
+
 
 
 ##Run wavelets on the sqrt(series) we generated
 
-Note: these Wavelet functions originally developed by Johannson et al PLOS Medicine https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1000168
+Note: these Wavelet functions originally developed by Johannson et al PLOS Medicine <https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1000168>
 
 ```{r wave2, echo=TRUE}
-	wave1<- as.data.frame(cbind("x"=(sqrt(xt1)), "t"=t))
-	cwt1 <- complete.cwt(wave1, dj=1/10)
-	plot.cwt(cwt1)
-		wave2 <-as.data.frame(cbind("x"=(sqrt(xt2)), "t"=t)) 
-	cwt2 <- complete.cwt(wave2, dj=1/10)
-		plot.cwt(cwt2)
+wave1<- rsvds %>% 
+    filter(country=='Sweden' & ORIGIN_SOURCE=='NONSENTINEL' ) %>% 
+    mutate(x=sqrt(RSV)) %>%
+  select(x, t)
+  
+cwt1 <- complete.cwt(wave1, dj=1/26, dt=1/52)
+
+plot.cwt(cwt1)
+
+plot.wave2(cwt1 )
 
 ```
+	
+	
+```{r}
+	wave2<- rsvds %>% 
+    filter(country=='France' & ORIGIN_SOURCE=='NONSENTINEL' ) %>% 
+    mutate(x=sqrt(RSV)) %>%
+  select(x, t)	
 
-```{r, fig.retina = 2}
-cwt3 <- complete.cwt(wave2, dj=1/1000, dt=1/10)
+cwt2 <- complete.cwt(wave2, dj=1/26, dt=1/52)
+
+plot.cwt(cwt2)
 plot.wave2(cwt3 )
+
 ```
+
 
 ##Compare phase angle of the 2 series we generated
 
+For the 52 week harmonic
 ```{r wave3, echo=FALSE}
 
-	phase1<-phase(cwt1, s=c(10, 14))
-	phase2<-phase(cwt2, s=c(10, 14))
+	phase1<-phase(cwt1, s=c(0.8, 1.2))
+	phase2<-phase(cwt2, s=c(0.8, 1.2))
 	
-	plot(t, phase1,type='l', col="blue", lty=1)
-	points(t, phase2,type='l', col="red", lty=1)
+	dates <- unique(rsvds$date)
+	plot(dates, phase1,type='l', col="blue", lty=1) #Sweden
+	points(dates, phase2,type='l', col="red", lty=1) #France
 ```
 
 ##Calculate and view the phase difference
@@ -334,47 +370,50 @@ plot.wave2(cwt3 )
 	phasediff2.1_correct <- ((phase.diff2.1 + 3*pi) %% (2*pi)) - (pi)
 	#shows corrected phase diff in modulo for the 12 month phase
 
-	plot(t,phasediff2.1_correct,type='l',col="blue", lty=1,ylim=c(-pi,pi))
+	plot(dates,phasediff2.1_correct,type='l',col="blue", lty=1,ylim=c(-pi,pi))
 
 ```
 
-##Convert phase difference to months
+##Convert phase difference to weeks
 
 ```{r wave5, echo=FALSE}
-	phase.diff.month <- phasediff2.1_correct * 12/(2*pi)
-	plot(t,phase.diff.month,type='l',col="blue", lty=1,ylim=c(-12,12))
+	phase.diff.wk <- phasediff2.1_correct * 52.143/(2*pi)
+	plot(dates,phase.diff.wk,type='l',col="blue", lty=1,ylim=c(-52,52))
 ```
 
 ##Reconstruct series, filtering out noise
 
 ```{r wave.recon, echo=FALSE}
  recon1 <- reconstruct.series(cwt1)  #square to get back to original scale
- recon1a <- reconstruct.series(cwt1, sp1=10, sp2=27)^2 #keep periods of 10-27
- recon1b <- reconstruct.series(cwt1, sp1=10, sp2=14)^2 # only keep periods of 10-14
- plot(t,recon1,type='l',col="blue", lty=1)
- points(t,recon1a,type="l",col="red",lty=1)
- points(t,recon1b,type="l",col="green",lty=1)
+ recon1a <- reconstruct.series(cwt1, sp1=0.8, sp2=1.2)^2 
+ recon1b <- reconstruct.series(cwt1, sp1=0.8, sp2=1.2)^2 
+ 
+ plot(dates,recon1,type='l',col="blue", lty=1)
+ points(dates,recon1a,type="l",col="red",lty=1)
+ points(dates,recon1b,type="l",col="green",lty=1)
 ```
 
-## Compare biennial vs annual strength in the 2 series 
-Confirms that biennial pattern is stronger in series 1 than series 2
+## Compare biennial vs annual strength in the 2 series
+
+Confirms that biennial pattern is stronger in Sweden than France
 
 ```{r annual.biennial}
 
-series1.biennial.ratio <- biennial.func(ds=cwt1)
-series2.biennial.ratio <- biennial.func(ds=cwt2)
+series1.biennial.ratio <- biennial.func(ds=cwt1,period.range.short=c(0.8,1.2),period.range.long=c(1.8,2.2))
 
-series1.biennial.ratio
-series2.biennial.ratio
+series2.biennial.ratio <- biennial.func(ds=cwt2,period.range.short=c(0.8,1.2),period.range.long=c(1.8,2.2))
+
+series1.biennial.ratio # Sweden
+
+series2.biennial.ratio # France
 ```
 
 ## Coherence analysis Evaluate coherence between the 2 series. At which
+
 periods and which time points are the series in sync?
 
 ```{r coherence}
 #Coherence analysis
-coh1.2 <- complete.coh(wave1,wave2, mc.sim=100, dj=1/10)
+coh1.2 <- complete.coh(wave1,wave2, mc.sim=100, dj=1/26)
 plot.coh(coh1.2)
 ```
-
-
