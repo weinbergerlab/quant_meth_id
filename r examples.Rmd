@@ -408,7 +408,7 @@ series1.biennial.ratio # Sweden
 series2.biennial.ratio # France
 ```
 
-## Coherence analysis Evaluate coherence between the 2 series. At which
+## Coherence analysis Evaluate coherence between the 2 series. At which periodicity do we have correlation?
 
 periods and which time points are the series in sync?
 
