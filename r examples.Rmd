@@ -279,7 +279,7 @@ plot(periodx, specy, xlab="Period (months)",
 
 ## Wavelets
 
-### RSV data from WHO surveillance. COmpare Sweden and France
+### RSV data from WHO surveillance. Compare Sweden and France
 
 ```{r}
 #code Courtesy of DeusThindwa; data from WHO
