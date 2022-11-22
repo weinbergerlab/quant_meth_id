@@ -423,10 +423,10 @@ series2.biennial.ratio # France
 
 ## Coherence analysis Evaluate coherence between the 2 series. At which periodicity do we have correlation?
 
-periods and which time points are the series in sync? should actually use more monte carlo draws, but takes too long for in class demo
+periods and which time points are the series in sync? should actually use more monte carlo draws, but takes too long for in class demo (note if set dt=1/52, gives same result but takes much longer)
 
 ```{r coherence}
 #Coherence analysis
-coh1.2 <- complete.coh(wave1,wave2,  dj=1/26, dt=1/52,mc.sim=2) #mc.sim=1000
+coh1.2 <- complete.coh(wave1,wave2, dj=1/26,mc.sim=25) #mc.sim=1000
 plot.coh(coh1.2)
 ```
