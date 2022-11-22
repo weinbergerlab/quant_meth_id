@@ -427,7 +427,7 @@ plot.cwt <- function(cwt.obj) {
 		axis(side=1, at=seq(ceiling(min(cwt.obj$time)), floor(max(cwt.obj$time)), by=floor(length(cwt.obj$time)*cwt.obj$dt/5))+.5, labels=seq(ceiling(min(cwt.obj$time)), floor(max(cwt.obj$time)), by=floor(length(cwt.obj$time)*cwt.obj$dt/5)), tcl=-.8)
 		axis(side=2, at=(-1:floor(log2(max(cwt.obj$periods)))), labels=2^(-1:floor(log2(max(cwt.obj$periods)))))
 		contour(cwt.obj$time, log2(cwt.obj$periods), t(cwt.obj$local/cwt.obj$local.sig), add=T, levels=c(1), drawlabels=F, col="black", lwd=2, lty=1)	
-		polygon(c(min(cwt.obj$time), min(cwt.obj$time), cwt.obj$time, max(cwt.obj$time), max(cwt.obj$time)), c(max(cwt.obj$periods), min(log2(cwt.obj$coi)),  log2(cwt.obj$coi), min(log2(cwt.obj$coi)), max(cwt.obj$periods)), border=NA, col=hsv(0, 0, .5, alpha=.5))
+		polygon(c(min(cwt.obj$time), min(cwt.obj$time), cwt.obj$time, max(cwt.obj$time), max(cwt.obj$time)), c(max(log2(cwt.obj$periods)), min(log2(cwt.obj$coi)),  log2(cwt.obj$coi), min(log2(cwt.obj$coi)), max(log2(cwt.obj$periods))), border=NA, col=hsv(0, 0, .5, alpha=.5))
 		box()
 	
 	screen(2)
