@@ -159,6 +159,25 @@ ggplot(mod_ds, aes(x=date, y=RSV)) +
 
 ```
 
+## Why does this work?
+
+This is effectively a simple regression, relating X (sin and cos) to log(Y)(cases)-- but we are plotting both as a function of time. If we plot compared to each other, the relationship is more obvious:
+
+```{r}
+ggplot(mod_ds, aes(x=sin52, y=log(RSV+0.5))) +
+  geom_point( color='gray') +
+  theme_classic()
+
+ggplot(mod_ds, aes(x=cos52, y=log(RSV+0.5))) +
+  geom_point( color='gray') +
+  theme_classic()
+
+ggplot(mod_ds, aes(x=(2*cos52 + 2*sin52), y=log(RSV+0.5))) +
+  geom_point( color='gray') +
+  theme_classic()
+```
+
+
 ## Add in 2 year periodicity
 
 ```{r harm_reg2}
