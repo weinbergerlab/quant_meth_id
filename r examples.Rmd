@@ -14,8 +14,57 @@ source('./R/WaveletPkg.R')
 source('./R/plot.wave2.R')
 source('./R/biennial.func.R')
 library(dplyr)
-set.seed(123)
+library(dplyr)
+library(ggplot2)
+library(MASS)
 ```
+
+
+## Data
+
+For these examples, we will use data from the WHO surveillance database for RSV (from the Flu datamark)
+
+Downloads the latest data from WHO
+```{r}
+#code Courtesy of DeusThindwa; data from WHO
+#library(curl)
+#library(dplyr)
+#library(ggplot2)
+#rsv <- read.csv(curl("https://frontdoor-l4uikgap6gz3m.azurefd.net/FLUMART/VIW_FNT?$format=csv"))
+#saveRDS(rsv,'./Data/rsv_who.rds')
+```
+
+Import and clean the data. Fill in 0s to create a time series. data are not collected year round; assume 0 cases during weeks when there is no data
+
+```{r}
+rsv <- readRDS('./Data/rsv_who.rds')
+
+#Clean the data, fill in 0s if not observed
+rsvds <-
+  rsv %>%
+  dplyr::filter(!is.na(RSV)) %>%
+  dplyr::select(WHOREGION, FLUSEASON, ORIGIN_SOURCE,HEMISPHERE, COUNTRY_AREA_TERRITORY, MMWR_WEEKSTARTDATE, MMWR_YEAR, MMWR_WEEK, RSV) %>%
+  arrange(WHOREGION, COUNTRY_AREA_TERRITORY, MMWR_WEEKSTARTDATE,ORIGIN_SOURCE) %>%
+  filter(COUNTRY_AREA_TERRITORY %in% c('France', 'Sweden')) %>%
+  mutate(date=as.Date(MMWR_WEEKSTARTDATE)) %>%
+  filter(date>='2015-01-01' & date <= '2023-03-01') %>%
+  rename(country=COUNTRY_AREA_TERRITORY) %>%
+  tidyr::complete(country,ORIGIN_SOURCE,date = seq.Date(from=as.Date('2015-01-04') ,to=as.Date('2022-11-06'), by='week'), fill=list(RSV=0)) %>%
+  arrange(country,ORIGIN_SOURCE, date ) %>%
+  group_by(country, ORIGIN_SOURCE) %>%
+  mutate(t= row_number()) %>%
+  ungroup()
+```
+
+Plot the time series
+
+```{r}
+rsvds %>% filter(ORIGIN_SOURCE=='NONSENTINEL') %>%
+  ggplot( aes(x=date, y=RSV, group=country ,color=country)) +
+  geom_line() +
+  theme_classic()
+```
+
 
 ## Examples
 
@@ -23,19 +72,21 @@ Here are some worked examples of what we are covering in class
 
 ## Generating harmonic curves
 
--First create an index variable for time (1,2,3...t) -Then use sine and cosine functions to generate a wave with specified period -12 month harmonic (sine and cosine waves)
+-First create an index variable for time (1,2,3...t) -Then use sine and cosine functions to generate a wave with specified period -52 week harmonic (sine and cosine waves)
 
 ```{r harmonics, echo=TRUE}
-t<-1:120
 
-sin12<-sin(2*pi*t/12)
-
-cos12<-cos(2*pi*t/12)
+rsvds <- rsvds %>%
+  mutate( sin52 = sin(2*pi*t/52.143),
+          cos52 = cos(2*pi*t/52.143)
+  )
 ```
 
 ```{r}
-plot(sin12, type='l', col='red')
- points(cos12, type='l', lty=2, col='blue')
+ggplot(rsvds)+
+  geom_line( aes(x=date, y=sin52),color='red') +
+  geom_line(data=rsvds,aes(x=date, y=cos52),color='blue') +
+  theme_classic()
 ```
 
 ## Vary the period
@@ -46,13 +97,16 @@ shinyApp(
 
   ui = fluidPage(
     sliderInput("period", "Period:",
-               min=2, max=36, value=12),
+               min=6, max=208, value=52),
     plotOutput("periodPlot")
   ),
 
   server = function(input, output) {
     output$periodPlot = renderPlot({
-      plot(sin12, type='l', col='gray')
+      t=1:520
+      sin52=sin(2*pi*t/52.143)
+      cos52=cos(2*pi*t/52.143)
+      plot(sin52, type='l', col='gray')
       points(sin(2*pi*t/input$period),type='l', col='red', xlab='time' )
       title(paste0('sin(2*pi*t/',input$period,')'))
     },width = "auto", height = "auto")
@@ -62,152 +116,138 @@ shinyApp(
 
 ## Harmonic Regression
 
-### Generate count data with known periodicity
+### Generate harmonicd with specified periods (Fourier series), fit to data
 
--   120 months total
--   (10years of data)
--   Has both a 12 and 24 month cycle -Amplitude=1.5
 
-```{r gen_data , echo=TRUE}
-n=120
-
-t<-1:n
-
-set.seed(123)
-
-#Generate some  data that has a frequency of 1/10 and 1/20  frequency (period of 10 ,10 )
-amp1=0.75
-freq1=1/12 # high frequency
-
-amp2=1.5
-freq2=1/24 #low frequency
-
-xt1a=amp1*cos(2*3.14159*t*freq1) #component 1
-xt1b=amp2*cos(2*3.14159*t*freq2) #component 2
-
-intercept<-0.0
-
-lambda<- exp(intercept+xt1a+xt1b)
-```
-
-Mean (lambda) over time
-
-```{r}
-plot(lambda, type='l')
-```
-
-Assume xt1 has a mean of lambda at time t, with a Poisson distribution
-
-```{r}
-set.seed(1234)
-xt1=rpois(n,lambda)
-
-```
-
-View the components of the data we generated
-
-```{r plots1, echo=FALSE}
-par(mfrow=c(2,2), mar=c(2,2,1,1))
-plot(xt1a, bty='l' , main='Component 1', type='l' , ylim=range(c(xt1a,xt1b)))
-
-plot(xt1b, bty='l' , main='Component 2' , type='l', ylim=range(c(xt1a,xt1b)))
-
-plot(xt1a+xt1b, bty='l' , main='log(Component 1 +Component 2)' , type='l', ylim=range(xt1a+xt1b))
-
-plot(t, xt1,type="l", lwd=3, xaxt="n",bty="l",ylab="Cases of Disease", xlab="Month(n)", main="Cases")
-```
 
 ## Create the needed harmonic variables with 12, 24, and 48 month periods
 
+ focus on sweden in pre pandemic period
+
 ```{r harm1, echo=TRUE}
-t<-1:120
-#Create harmonic variables
-sin12=sin(2*pi*t/12)
-cos12=cos(2*pi*t/12)
+mod_ds <- rsvds %>%
+  mutate( sin52 = sin(2*pi*t/52.143),
+          cos52 = cos(2*pi*t/52.143),
+          
+          sin26 = sin(2*pi*t*2/52.143),
+          cos26 = cos(2*pi*t*2/52.143),
+        
+          sin17 = sin(2*pi*t*3/52.143),
+          cos17 = cos(2*pi*t*3/52.143),
+          
+          sin104 = sin(2*pi*t*0.5/52.143),
+          cos104 = cos(2*pi*t*0.5/52.143),
+        ) %>%
+  filter(country=='Sweden' &   ORIGIN_SOURCE=='NONSENTINEL' & date<='2020-03-01')
 
-sin24=sin(2*pi*t/24)
-cos24=cos(2*pi*t/24)
 
-sin48=sin(2*pi*t/48)
-cos48=cos(2*pi*t/48)
 ```
 
-## Fit a simple poisson regression with just 12 month period
+## Fit a simple poisson regression with just 52 week period
 
 ```{r harm_reg1}
-fit1a <- glm(xt1 ~ sin12+cos12, family='poisson' )
-pred1a<- fitted(fit1a)
+fit1a <- glm.nb(RSV ~ sin52 + cos52, data=mod_ds )
+mod_ds$pred1a<- fitted(fit1a)
 ```
 
 ```{r}
-#summary(fit1a)
-par(mfrow=c(1,1))
-plot (t, xt1,bty="l", xaxt="n",yaxt="n",xlab="Time",ylab="Cases of Disease", type="p")
-points(t,pred1a, type="l",lty=1,col="blue", lwd=3)
+
+ggplot(mod_ds, aes(x=date, y=RSV)) +
+  geom_line( color='gray') +
+  geom_line(aes(x=date, y=pred1a), color='red') +
+  theme_classic()
+
 ```
 
-## Add in 24 month periodicity
+## Add in 2 year periodicity
 
 ```{r harm_reg2}
-fit2a <- glm(xt1 ~ sin12+cos12 +sin24 +cos24, family='poisson' )
-pred2a<- fitted(fit2a)
+fit2a <- glm.nb(RSV ~ sin52+cos52 + sin104 + cos104,  data=mod_ds )
+mod_ds$pred2a<- fitted(fit2a)
 ```
 
 ```{r}
-#summary(fit2a)
-par(mfrow=c(1,1))
-plot (t, xt1,bty="l", xaxt="n",yaxt="n",xlab="Time",ylab="Cases of Disease", type="p")
-points(t,pred2a, type="l",lty=1,col="blue", lwd=3)
+ggplot(mod_ds, aes(x=date, y=RSV)) +
+  geom_line( color='gray') +
+  geom_line(aes(x=date, y=pred2a), color='red') +
+  theme_classic()
+
 ```
 
-## Add in 48 month period
+
+## Add in 26 week month period
 
 ```{r harm_reg3}
-fit3a <- glm(xt1 ~ sin12+cos12 +sin24 +cos24 +sin48 +cos48, family='poisson' )
-pred3a<- fitted(fit3a)
-#summary(fit3a)
-par(mfrow=c(1,1))
-plot (t, xt1,bty="l", xaxt="n",yaxt="n",xlab="Time",ylab="Cases of Disease", type="p")
-points(t,pred3a, type="l",lty=1,col="blue", lwd=3)
+fit3a <- glm.nb(RSV ~ sin52+cos52 + sin104 + cos104 + sin26+cos26,  data=mod_ds )
+mod_ds$pred3a<- fitted(fit3a)
+
 ```
+
+
+```{r}
+ggplot(mod_ds, aes(x=date, y=RSV)) +
+  geom_line( color='gray') +
+  geom_line(aes(x=date, y=pred3a), color='red') +
+  theme_classic()
+
+```
+
+```{r harm_reg3}
+fit4a <- glm.nb(RSV ~ sin52+cos52 + sin104 + cos104 + sin26+cos26 + sin17 + cos17 , data=mod_ds )
+mod_ds$pred4a<- fitted(fit4a)
+
+```
+
+
+```{r}
+ggplot(mod_ds, aes(x=date, y=RSV)) +
+  geom_line( color='black') +
+  geom_line(aes(x=date, y=pred2a), color='#1b9e77') +
+    geom_line(aes(x=date, y=pred3a), color='#d95f02', lty=2) +
+    geom_line(aes(x=date, y=pred4a), color='#7570b3', lty=3) +
+    theme_classic()
+
+```
+
 
 ## Determine best model with AIC (smaller=better)
 
-Winner is Model 2 (12 and 24 month period). Models 2 and 3 have similar AIC score (within 2 points), so we prefer the simpler model
 
 ```{r aic}
  AIC(fit1a)
  AIC(fit2a)
  AIC(fit3a)
+ AIC(fit4a)
+
 ```
 
-## Calculate amplitude of the 12 and 24 month periods and their ratio
+## Calculate amplitude of the 52 and 104 month periods and their ratio
 
 First for the 12 month period. 
 Amplitude = sqrt(b1^2 + b2^2)
 ```{r amp}
-beta_sin12<-coef(fit2a)['sin12']
-beta_cos12<-coef(fit2a)['cos12']
+beta_sin52<-coef(fit2a)['sin52']
+beta_cos52<-coef(fit2a)['cos52']
 
-amp12<-sqrt(beta_sin12^2 +beta_cos12^2)
+amp52<-sqrt(beta_sin52^2 +beta_cos52^2)
 
-amp12 #True value=0.75
+amp52 
 ```
 
 Same for the 24 month period
 ```{r}
-beta_sin24<-coef(fit2a)['sin24']
-beta_cos24<-coef(fit2a)['cos24']
-amp24<-sqrt(beta_sin24^2 +beta_cos24^2)
+beta_sin104<-coef(fit4a)['sin104']
+beta_cos104<-coef(fit4a)['cos104']
+amp104<-sqrt(beta_sin104^2 +beta_cos104^2)
 
-amp24 #True value=1.5
+amp104 
 ```
 
 Ratio of 24 to 12 month gives estimate of importance of biennial vs annual cycles
 
 ```{r}
-ratio12_24<-amp24/amp12
-ratio12_24
+ratio104_52<-amp104/amp52
+ratio104_52
 ```
 
 ## Fast Fourier Transform
@@ -216,7 +256,7 @@ If we don't already know what periods should be present, can we use first use FF
 
 ```{r fft1, echo=TRUE}
 # Do a FFT using the spectrum function 
-mspect <- spectrum(sqrt(xt1),  spans=c(2,2), plot=FALSE)
+mspect <- spectrum(sqrt(mod_ds$RSV),  spans=c(2,2), plot=FALSE)
 ```
 
 This returns estimates of spectral density for each frequency. We will convert to period=1/frequency
@@ -224,11 +264,12 @@ This returns estimates of spectral density for each frequency. We will convert t
 ```{r}
 periodx <- 1/mspect$freq 
 specy <- 2*mspect$spec
-plot(periodx, specy, xlab="Period (months)",
+plot(periodx, specy, xlab="Period (weeks)",
      ylab="Spectral Density", type="l", bty='l')
 ```
 
 ##FFT slider
+To understand how FFT works, let's simulate monthly time series data with different characteristics. The time series has two periods, and we can change the length of the periods and the amplitude wit these sliders 
 
 ```{r fft.slider, echo=FALSE}
 n=1000
@@ -281,41 +322,9 @@ plot(periodx, specy, xlab="Period (months)",
 
 ### RSV data from WHO surveillance. Compare Sweden and France
 
-```{r}
-#code Courtesy of DeusThindwa; data from WHO
-#library(curl)
-#library(dplyr)
-library(ggplot2)
-#rsv <- read.csv(curl("https://frontdoor-l4uikgap6gz3m.azurefd.net/FLUMART/VIW_FNT?$format=csv"))
-#saveRDS(rsv,'./Data/rsv_who.rds')
-
-rsv <- readRDS('./Data/rsv_who.rds')
-
-#Clean the data, fill in 0s if not observed
-rsvds <-
-  rsv %>%
-  dplyr::filter(!is.na(RSV)) %>%
-  dplyr::select(WHOREGION, FLUSEASON, ORIGIN_SOURCE,HEMISPHERE, COUNTRY_AREA_TERRITORY, MMWR_WEEKSTARTDATE, MMWR_YEAR, MMWR_WEEK, RSV) %>%
-  arrange(WHOREGION, COUNTRY_AREA_TERRITORY, MMWR_WEEKSTARTDATE,ORIGIN_SOURCE) %>%
-  filter(COUNTRY_AREA_TERRITORY %in% c('France', 'Sweden')) %>%
-  mutate(date=as.Date(MMWR_WEEKSTARTDATE)) %>%
-  filter(date>='2015-01-01' & date <= '2023-03-01') %>%
-  rename(country=COUNTRY_AREA_TERRITORY) %>%
-  tidyr::complete(country,ORIGIN_SOURCE,date = seq.Date(from=as.Date('2015-01-04') ,to=as.Date('2022-11-06'), by='week'), fill=list(RSV=0)) %>%
-  arrange(country,ORIGIN_SOURCE, date ) %>%
-  group_by(country, ORIGIN_SOURCE) %>%
-  mutate(t= row_number()) %>%
-  ungroup()
-
-rsvds %>% filter(ORIGIN_SOURCE=='NONSENTINEL') %>%
-  ggplot( aes(x=date, y=RSV, group=country ,color=country)) +
-  geom_line() +
-  theme_classic()
-```
 
 
-
-##Run wavelets on the sqrt(series) we generated
+##Run wavelets on the sqrt(Cases) for France and Sweden
 
 Note: these Wavelet functions originally developed by Johannson et al PLOS Medicine <https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1000168>
 
@@ -323,7 +332,7 @@ Note: these Wavelet functions originally developed by Johannson et al PLOS Medic
 wave1<- rsvds %>% 
     filter(country=='Sweden' & ORIGIN_SOURCE=='NONSENTINEL' ) %>% 
     mutate(x=sqrt(RSV)) %>%
-  select(x, t)
+   dplyr::select(x, t)
   
 cwt1 <- complete.cwt(wave1, dj=1/26, dt=1/52)
 
@@ -338,12 +347,12 @@ plot.wave2(cwt1 )
 	wave2<- rsvds %>% 
     filter(country=='France' & ORIGIN_SOURCE=='NONSENTINEL' ) %>% 
     mutate(x=sqrt(RSV)) %>%
-  select(x, t)	
+  dplyr::select(x, t)	
 
 cwt2 <- complete.cwt(wave2, dj=1/26, dt=1/52)
 
 plot.cwt(cwt2)
-plot.wave2(cwt3 )
+plot.wave2(cwt2 )
 
 ```
 
@@ -384,13 +393,17 @@ For the 52 week harmonic
 ##Reconstruct series, filtering out noise
 
 ```{r wave.recon, echo=FALSE}
+
+y = wave1$x #Original data
+
  recon1 <- reconstruct.series(cwt1)  #square to get back to original scale
- recon1a <- reconstruct.series(cwt1, sp1=0.8, sp2=1.2)^2 
- recon1b <- reconstruct.series(cwt1, sp1=0.8, sp2=1.2)^2 
+ recon1a <- reconstruct.series(cwt1, sp1=0.5, sp2=100) 
+ recon1b <- reconstruct.series(cwt1, sp1=0.8, sp2=100)
  
- plot(dates,recon1,type='l',col="blue", lty=1)
- points(dates,recon1a,type="l",col="red",lty=1)
- points(dates,recon1b,type="l",col="green",lty=1)
+ plot(dates,recon1,type='l',col="#1b9e77", lty=1)
+  points(dates,recon1a,type="l",col="#d95f02",lty=2)
+ points(dates,recon1b,type="l",col="#7570b3",lty=3)
+
 ```
 
 ## Compare biennial vs annual strength in the 2 series
@@ -414,6 +427,6 @@ periods and which time points are the series in sync? should actually use more m
 
 ```{r coherence}
 #Coherence analysis
-coh1.2 <- complete.coh(wave1,wave2,  dj=1/12, dt=1/52,mc.sim=2) #mc.sim=1000
+coh1.2 <- complete.coh(wave1,wave2,  dj=1/26, dt=1/52,mc.sim=2) #mc.sim=1000
 plot.coh(coh1.2)
 ```
