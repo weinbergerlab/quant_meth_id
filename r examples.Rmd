@@ -196,7 +196,7 @@ ggplot(mod_ds, aes(x=date, y=RSV)) +
 
 ## Add in 26 week month period
 
-```{r harm_reg3}
+```{r harm_reg3a}
 fit3a <- glm.nb(RSV ~ sin52+cos52 + sin104 + cos104 + sin26+cos26,  data=mod_ds )
 mod_ds$pred3a<- fitted(fit3a)
 
