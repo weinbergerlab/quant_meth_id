@@ -1,0 +1,175 @@
+---
+title: "Quantitative Methods in Infectious Disease"
+subtitle: "Time series examples"
+author: "Dan Weinberger"
+date: 'November 28, 2021'
+runtime: shiny
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+require(shiny)
+source('./R/WaveletPkg.R')
+source('./R/plot.wave2.R')
+source('./R/biennial.func.R')
+library(dplyr)
+library(dplyr)
+library(ggplot2)
+library(MASS)
+```
+
+
+## Data
+
+For these examples, we will use data from the WHO surveillance database for RSV (from the Flu datamark)
+
+Downloads the latest data from WHO
+```{r}
+#code Courtesy of DeusThindwa; data from WHO
+#library(curl)
+#library(dplyr)
+#library(ggplot2)
+#rsv <- read.csv(curl("https://frontdoor-l4uikgap6gz3m.azurefd.net/FLUMART/VIW_FNT?$format=csv"))
+#saveRDS(rsv,'./Data/rsv_who.rds')
+```
+
+Import and clean the data. Fill in 0s to create a time series. data are not collected year round; assume 0 cases during weeks when there is no data
+
+```{r}
+rsv <- readRDS('./Data/rsv_who.rds')
+
+#Clean the data, fill in 0s if not observed
+rsvds <-
+  rsv %>%
+  dplyr::filter(!is.na(RSV)) %>%
+  dplyr::select(WHOREGION, FLUSEASON, ORIGIN_SOURCE,HEMISPHERE, COUNTRY_AREA_TERRITORY, MMWR_WEEKSTARTDATE, MMWR_YEAR, MMWR_WEEK, RSV) %>%
+  arrange(WHOREGION, COUNTRY_AREA_TERRITORY, MMWR_WEEKSTARTDATE,ORIGIN_SOURCE) %>%
+  filter(COUNTRY_AREA_TERRITORY %in% c('France', 'Sweden')) %>%
+  mutate(date=as.Date(MMWR_WEEKSTARTDATE)) %>%
+  filter(date>='2015-01-01' & date <= '2023-03-01') %>%
+  rename(country=COUNTRY_AREA_TERRITORY) %>%
+  tidyr::complete(country,ORIGIN_SOURCE,date = seq.Date(from=as.Date('2015-01-04') ,to=as.Date('2022-11-06'), by='week'), fill=list(RSV=0)) %>%
+  arrange(country,ORIGIN_SOURCE, date ) %>%
+  group_by(country, ORIGIN_SOURCE) %>%
+  mutate(t= row_number()) %>%
+  ungroup()
+```
+
+Plot the time series
+
+```{r}
+rsvds %>% filter(ORIGIN_SOURCE=='NONSENTINEL') %>%
+  ggplot( aes(x=date, y=RSV, group=country ,color=country)) +
+  geom_line() +
+  theme_classic()
+```
+
+
+
+
+## Harmonic Regression
+
+### Generate harmonicd with specified periods (Fourier series), fit to data
+
+
+
+## Create the needed harmonic variables with 12, 24, and 48 month periods
+
+ focus on sweden in pre pandemic period
+
+```{r harm1, echo=TRUE}
+mod_ds <- rsvds %>%
+  mutate( sin52 = sin(2*pi*t/52.143),
+          cos52 = cos(2*pi*t/52.143),
+          
+          sin104 = sin(2*pi*t*0.5/52.143),
+          cos104 = cos(2*pi*t*0.5/52.143),
+        ) %>%
+  filter(country=='Sweden' &   ORIGIN_SOURCE=='NONSENTINEL' & date<='2020-03-01')
+
+
+```
+
+## Fit a simple poisson regression with just 52 week period
+
+```{r harm_reg1}
+fit1a <- glm.nb(RSV ~ sin52 + cos52, data=mod_ds )
+mod_ds$pred1a<- fitted(fit1a)
+```
+
+```{r}
+
+ggplot(mod_ds, aes(x=date, y=RSV)) +
+  geom_line( color='gray') +
+  geom_line(aes(x=date, y=pred1a), color='red') +
+  theme_classic()
+
+```
+
+
+## Residuals
+```{r}
+mod_ds <- mod_ds %>%
+ mutate( log_resid1 = log(RSV+0.5) - log(pred1a+0.5)) # for a log-linked model, residual is observed/expected
+```
+
+```{r}
+
+ggplot(mod_ds, aes(x=date, y=log_resid1)) +
+  geom_line( color='red') +
+  theme_classic()+
+  geom_hline(yintercept=0, lty=2, col='gray')
+
+```
+
+
+## Why does this work?
+
+This is effectively a simple regression, relating X (sin and cos) to log(Y)(cases)-- but we are plotting both as a function of time. If we plot compared to each other, the relationship is more obvious:
+
+```{r}
+ggplot(mod_ds, aes(x=sin52, y=log(RSV+0.5))) +
+  geom_point( color='gray') +
+  theme_classic()
+
+ggplot(mod_ds, aes(x=cos52, y=log(RSV+0.5))) +
+  geom_point( color='gray') +
+  theme_classic()
+
+ggplot(mod_ds, aes(x=(2*cos52 + 2*sin52), y=log(RSV+0.5))) +
+  geom_point( color='gray') +
+  theme_classic()
+```
+
+
+## Add in 2 year periodicity
+
+```{r harm_reg2}
+fit2a <- glm.nb(RSV ~ sin52+cos52 + sin104 + cos104,  data=mod_ds )
+mod_ds$pred2a<- fitted(fit2a)
+```
+
+```{r}
+ggplot(mod_ds, aes(x=date, y=RSV)) +
+  geom_line( color='gray') +
+  geom_line(aes(x=date, y=pred2a), color='red') +
+  theme_classic()
+
+```
+
+### Residuals
+```{r}
+mod_ds <- mod_ds %>%
+ mutate( log_resid2 = log(RSV+0.5) - log(pred2a+0.5)) # for a log-linked model, residual is observed/expected
+```
+
+```{r}
+
+ggplot(mod_ds, aes(x=date, y=log_resid2)) +
+  geom_line( color='red') +
+  geom_line(aes(x=date, y=log_resid1), color='gray') +
+    theme_classic()+
+  geom_hline(yintercept=0, lty=2, col='gray')
+
+```
