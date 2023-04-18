@@ -2,13 +2,13 @@
 title: "Quantitative Methods in Infectious Disease"
 subtitle: "Time series examples"
 author: "Dan Weinberger"
-date: 'November 28, 2021'
+date: 'November 30, 2022'
 runtime: shiny
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 require(shiny)
 source('./R/WaveletPkg.R')
 source('./R/plot.wave2.R')
@@ -19,12 +19,12 @@ library(ggplot2)
 library(MASS)
 ```
 
-
 ## Data
 
-For these examples, we will use data from the WHO surveillance database for RSV (from the Flu datamark)
+For these examples, we will use data from the WHO surveillance database for RSV (from the Flu datamart)
 
 Downloads the latest data from WHO
+
 ```{r}
 #code Courtesy of DeusThindwa; data from WHO
 #library(curl)
@@ -49,10 +49,10 @@ rsvds <-
   mutate(date=as.Date(MMWR_WEEKSTARTDATE)) %>%
   filter(date>='2015-01-01' & date <= '2023-03-01') %>%
   rename(country=COUNTRY_AREA_TERRITORY) %>%
-  tidyr::complete(country,ORIGIN_SOURCE,date = seq.Date(from=as.Date('2015-01-04') ,to=as.Date('2022-11-06'), by='week'), fill=list(RSV=0)) %>%
+  tidyr::complete(country,ORIGIN_SOURCE,date = seq.Date(from=as.Date('2015-01-04') ,to=as.Date('2022-11-06'), by='week'), fill=list(RSV=0)) %>% #fill time series
   arrange(country,ORIGIN_SOURCE, date ) %>%
   group_by(country, ORIGIN_SOURCE) %>%
-  mutate(t= row_number()) %>%
+  mutate(t= row_number()) %>%  #index for time
   ungroup()
 ```
 
@@ -64,7 +64,6 @@ rsvds %>% filter(ORIGIN_SOURCE=='NONSENTINEL') %>%
   geom_line() +
   theme_classic()
 ```
-
 
 ## Examples
 
@@ -116,13 +115,11 @@ shinyApp(
 
 ## Harmonic Regression
 
-### Generate harmonicd with specified periods (Fourier series), fit to data
+### Generate harmonics with specified periods (Fourier series), fit to data
 
+## Create the needed harmonic variables with 52,26, 17, 104 week periods
 
-
-## Create the needed harmonic variables with 12, 24, and 48 month periods
-
- focus on sweden in pre pandemic period
+focus on Sweden in pre-pandemic period
 
 ```{r harm1, echo=TRUE}
 mod_ds <- rsvds %>%
@@ -177,7 +174,6 @@ ggplot(mod_ds, aes(x=(2*cos52 + 2*sin52), y=log(RSV+0.5))) +
   theme_classic()
 ```
 
-
 ## Add in 2 year periodicity
 
 ```{r harm_reg2}
@@ -193,15 +189,13 @@ ggplot(mod_ds, aes(x=date, y=RSV)) +
 
 ```
 
-
-## Add in 26 week month period
+## Add in 26 week period
 
 ```{r harm_reg3a}
 fit3a <- glm.nb(RSV ~ sin52+cos52 + sin104 + cos104 + sin26+cos26,  data=mod_ds )
 mod_ds$pred3a<- fitted(fit3a)
 
 ```
-
 
 ```{r}
 ggplot(mod_ds, aes(x=date, y=RSV)) +
@@ -217,7 +211,6 @@ mod_ds$pred4a<- fitted(fit4a)
 
 ```
 
-
 ```{r}
 ggplot(mod_ds, aes(x=date, y=RSV)) +
   geom_line( color='black') +
@@ -228,9 +221,9 @@ ggplot(mod_ds, aes(x=date, y=RSV)) +
 
 ```
 
-
 ## Determine best model with AIC (smaller=better)
 
+(AIC might not be appropriate here due t residual autocorrelation in the data; should probably have some sort of autoregressive random effect)
 
 ```{r aic}
  AIC(fit1a)
@@ -242,8 +235,8 @@ ggplot(mod_ds, aes(x=date, y=RSV)) +
 
 ## Calculate amplitude of the 52 and 104 month periods and their ratio
 
-First for the 12 month period. 
-Amplitude = sqrt(b1^2 + b2^2)
+First for the 12 month period. Amplitude = sqrt(b1\^2 + b2\^2)
+
 ```{r amp}
 beta_sin52<-coef(fit2a)['sin52']
 beta_cos52<-coef(fit2a)['cos52']
@@ -254,6 +247,7 @@ amp52
 ```
 
 Same for the 24 month period
+
 ```{r}
 beta_sin104<-coef(fit4a)['sin104']
 beta_cos104<-coef(fit4a)['cos104']
@@ -287,8 +281,7 @@ plot(periodx, specy, xlab="Period (weeks)",
      ylab="Spectral Density", type="l", bty='l')
 ```
 
-##FFT slider
-To understand how FFT works, let's simulate monthly time series data with different characteristics. The time series has two periods, and we can change the length of the periods and the amplitude wit these sliders 
+##FFT slider To understand how FFT works, let's simulate monthly time series data with different characteristics. The time series has two periods, and we can change the length of the periods and the amplitude wit these sliders
 
 ```{r fft.slider, echo=FALSE}
 n=1000
@@ -341,8 +334,6 @@ plot(periodx, specy, xlab="Period (months)",
 
 ### RSV data from WHO surveillance. Compare Sweden and France
 
-
-
 ##Run wavelets on the sqrt(Cases) for France and Sweden
 
 Note: these Wavelet functions originally developed by Johannson et al PLOS Medicine <https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1000168>
@@ -360,8 +351,7 @@ plot.cwt(cwt1)
 plot.wave2(cwt1 )
 
 ```
-	
-	
+
 ```{r}
 	wave2<- rsvds %>% 
     filter(country=='France' & ORIGIN_SOURCE=='NONSENTINEL' ) %>% 
@@ -375,10 +365,10 @@ plot.wave2(cwt2 )
 
 ```
 
-
 ##Compare phase angle of the 2 series we generated
 
 For the 52 week harmonic
+
 ```{r wave3, echo=FALSE}
 
 	phase1<-phase(cwt1, s=c(0.8, 1.2))
@@ -406,7 +396,7 @@ For the 52 week harmonic
 
 ```{r wave5, echo=FALSE}
 	phase.diff.wk <- phasediff2.1_correct * 52.143/(2*pi)
-	plot(dates,phase.diff.wk,type='l',col="blue", lty=1,ylim=c(-52,52))
+	plot(dates,phase.diff.wk,type='l',col="blue", lty=1,ylim=c(-26,26))
 ```
 
 ##Reconstruct series, filtering out noise
